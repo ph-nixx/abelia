@@ -107,17 +107,17 @@ pub enum PlayerAnimationState {
 
 impl PlayerAnimation {
     /// The number of idle frames.
-    const IDLE_FRAMES: usize = 2;
+    const IDLE_FRAMES: usize = 1;
     /// The duration of each idle frame.
-    const IDLE_INTERVAL: Duration = Duration::from_millis(500);
+    const IDLE_INTERVAL: Duration = Duration::from_millis(0);
     /// The number of walking frames.
-    const WALKING_FRAMES: usize = 6;
+    const WALKING_FRAMES: usize = 7;
     /// The duration of each walking frame.
     const WALKING_INTERVAL: Duration = Duration::from_millis(50);
 
     fn idling() -> Self {
         Self {
-            timer: Timer::new(Self::IDLE_INTERVAL, TimerMode::Repeating),
+            timer: Timer::new(Self::IDLE_INTERVAL, TimerMode::Once),
             frame: 0,
             state: PlayerAnimationState::Idling,
         }
@@ -138,7 +138,7 @@ impl PlayerAnimation {
     /// Update animation timers.
     pub fn update_timer(&mut self, delta: Duration) {
         self.timer.tick(delta);
-        if !self.timer.is_finished() {
+        if !self.timer.just_finished() {
             return;
         }
         self.frame = (self.frame + 1)
@@ -160,14 +160,14 @@ impl PlayerAnimation {
 
     /// Whether animation changed this tick.
     pub fn changed(&self) -> bool {
-        self.timer.is_finished()
+        self.timer.just_finished()
     }
 
     /// Return sprite index in the atlas.
     pub fn get_atlas_index(&self) -> usize {
         match self.state {
             PlayerAnimationState::Idling => self.frame,
-            PlayerAnimationState::Walking => 6 + self.frame,
+            PlayerAnimationState::Walking => self.frame,
         }
     }
 }
