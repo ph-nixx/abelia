@@ -14,6 +14,8 @@ mod theme;
 
 use bevy::{asset::AssetMetaCheck, prelude::*};
 
+use crate::demo::camera::CameraFollow;
+
 fn main() -> AppExit {
     let mut app = App::new();
     app.add_plugins(
@@ -84,5 +86,5 @@ struct Pause(pub bool);
 struct PausableSystems;
 
 fn spawn_camera(mut commands: Commands) {
-    commands.spawn((Name::new("Camera"), Camera2d));
+    commands.spawn((Name::new("Camera"), Camera2d, CameraFollow::default()));
 }

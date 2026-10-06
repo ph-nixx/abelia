@@ -8,14 +8,14 @@ use bevy::{
 use crate::{
     AppSystems, PausableSystems,
     asset_tracking::LoadResource,
-    demo::{
-        animation::PlayerAnimation,
-        movement::{MovementController, ScreenWrap},
-    },
+    demo::{animation::PlayerAnimation, camera::CameraFollow, movement::MovementController},
 };
 
 pub(super) fn plugin(app: &mut App) {
     app.load_resource::<PlayerAssets>();
+
+    // Point the camera at the player once it spawns.
+    app.add_systems(Update, target_player_with_camera);
 
     // Record directional input as movement controls.
     app.add_systems(
@@ -47,9 +47,8 @@ pub fn player(
                 index: player_animation.get_atlas_index(),
             },
         ),
-        Transform::from_scale(Vec2::splat(8.0).extend(1.0)),
+        Transform::from_scale(Vec2::splat(4.0).extend(1.0)),
         MovementController { ..default() },
-        ScreenWrap,
         player_animation,
     )
 }
@@ -57,6 +56,14 @@ pub fn player(
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default, Reflect)]
 #[reflect(Component)]
 struct Player;
+
+/// Points the camera at the player once the player has spawned.
+fn target_player_with_camera(
+    player: Single<Entity, Added<Player>>,
+    mut camera: Single<&mut CameraFollow>,
+) {
+    camera.target = Some(*player);
+}
 
 fn record_player_directional_input(
     input: Res<ButtonInput<KeyCode>>,
