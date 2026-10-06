@@ -5,3 +5,5 @@
 .cargo/config.toml
 
 /docs/concept-art/
+
+.env*
