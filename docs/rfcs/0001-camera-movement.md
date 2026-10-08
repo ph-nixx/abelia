@@ -1,6 +1,8 @@
-* Feature Name: camera_movement
-* Start Date: 2026-10-05
-* Status: open
+---
+feature_name: camera_movement
+start_date: 2026-10-05
+status: implemented
+---
 
 ## Summary
 [summary]: #summary
