@@ -41,7 +41,7 @@ pub fn player(
         Name::new("Player"),
         Player,
         Sprite::from_atlas_image(
-            player_assets.gabe.clone(),
+            player_assets.sprite_sheet.clone(),
             TextureAtlas {
                 layout: texture_atlas_layout,
                 index: player_animation.get_atlas_index(),
@@ -71,16 +71,16 @@ fn record_player_directional_input(
 ) {
     // Collect directional input.
     let mut intent = Vec2::ZERO;
-    if input.pressed(KeyCode::KeyW) || input.pressed(KeyCode::ArrowUp) {
+    if input.pressed(KeyCode::KeyW) {
         intent.y += 1.0;
     }
-    if input.pressed(KeyCode::KeyS) || input.pressed(KeyCode::ArrowDown) {
+    if input.pressed(KeyCode::KeyS) {
         intent.y -= 1.0;
     }
-    if input.pressed(KeyCode::KeyA) || input.pressed(KeyCode::ArrowLeft) {
+    if input.pressed(KeyCode::KeyA) {
         intent.x -= 1.0;
     }
-    if input.pressed(KeyCode::KeyD) || input.pressed(KeyCode::ArrowRight) {
+    if input.pressed(KeyCode::KeyD) {
         intent.x += 1.0;
     }
 
@@ -100,7 +100,7 @@ fn record_player_directional_input(
 #[reflect(Resource)]
 pub struct PlayerAssets {
     #[dependency]
-    gabe: Handle<Image>,
+    sprite_sheet: Handle<Image>,
     #[dependency]
     pub steps: Vec<Handle<AudioSource>>,
 }
@@ -109,13 +109,13 @@ impl FromWorld for PlayerAssets {
     fn from_world(world: &mut World) -> Self {
         let assets = world.resource::<AssetServer>();
         Self {
-            gabe: assets
+            sprite_sheet: assets
                 .load_builder()
                 .with_settings(|settings: &mut ImageLoaderSettings| {
                     // Use `nearest` image sampling to preserve pixel art style.
                     settings.sampler = ImageSampler::nearest();
                 })
-                .load("images/gabe-run.png"),
+                .load("images/characters/mc-noweapon-4d.png"),
             steps: vec![
                 assets.load("audio/sound_effects/step1.ogg"),
                 assets.load("audio/sound_effects/step2.ogg"),
