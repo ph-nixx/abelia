@@ -43,7 +43,7 @@ impl Default for MovementController {
     fn default() -> Self {
         Self {
             intent: Vec2::ZERO,
-            max_speed: 800.0,
+            max_speed: 600.0,
         }
     }
 }
