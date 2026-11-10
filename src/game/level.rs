@@ -8,7 +8,7 @@ use bevy::{
 use crate::{
     asset_tracking::LoadResource,
     audio::music,
-    demo::{
+    game::{
         camera::LevelBounds,
         player::{PlayerAssets, player},
     },

@@ -8,14 +8,11 @@ use bevy::{
 use crate::{
     AppSystems, PausableSystems,
     asset_tracking::LoadResource,
-    demo::{animation::PlayerAnimation, camera::CameraFollow, movement::MovementController},
+    game::{animation::PlayerAnimation, movement::MovementController},
 };
 
 pub(super) fn plugin(app: &mut App) {
     app.load_resource::<PlayerAssets>();
-
-    // Point the camera at the player once it spawns.
-    app.add_systems(Update, target_player_with_camera);
 
     // Record directional input as movement controls.
     app.add_systems(
@@ -33,7 +30,7 @@ pub fn player(
 ) -> impl Bundle {
     // A texture atlas is a way to split a single image into a grid of related images.
     // You can learn more in this example: https://github.com/bevyengine/bevy/blob/latest/examples/2d/texture_atlas.rs
-    let layout = TextureAtlasLayout::from_grid(UVec2::splat(24), 7, 1, None, None);
+    let layout = TextureAtlasLayout::from_grid(UVec2::splat(32), 7, 6, None, None);
     let texture_atlas_layout = texture_atlas_layouts.add(layout);
     let player_animation = PlayerAnimation::new();
 
@@ -47,7 +44,7 @@ pub fn player(
                 index: player_animation.get_atlas_index(),
             },
         ),
-        Transform::from_scale(Vec2::splat(4.0).extend(1.0)),
+        Transform::from_scale(Vec2::splat(3.0).extend(1.0)),
         MovementController { ..default() },
         player_animation,
     )
@@ -55,15 +52,7 @@ pub fn player(
 
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default, Reflect)]
 #[reflect(Component)]
-struct Player;
-
-/// Points the camera at the player once the player has spawned.
-fn target_player_with_camera(
-    player: Single<Entity, Added<Player>>,
-    mut camera: Single<&mut CameraFollow>,
-) {
-    camera.target = Some(*player);
-}
+pub(super) struct Player;
 
 fn record_player_directional_input(
     input: Res<ButtonInput<KeyCode>>,

@@ -11,7 +11,7 @@ use std::time::Duration;
 use crate::{
     AppSystems, PausableSystems,
     audio::sound_effect,
-    demo::{movement::MovementController, player::PlayerAssets},
+    game::{movement::MovementController, player::PlayerAssets},
 };
 
 pub(super) fn plugin(app: &mut App) {
@@ -70,8 +70,7 @@ fn update_animation_atlas(mut query: Query<(&PlayerAnimation, &mut Sprite)>) {
     }
 }
 
-/// If the player is moving, play a step sound effect synchronized with the
-/// animation.
+/// If the player is moving, play a step sound effect synchronized with the animation.
 fn trigger_step_sound_effect(
     mut commands: Commands,
     player_assets: If<Res<PlayerAssets>>,
@@ -103,17 +102,23 @@ pub struct PlayerAnimation {
 pub enum PlayerAnimationState {
     Idling,
     Walking,
+    // Punching,
 }
 
 impl PlayerAnimation {
+    /// Number of columns in the sprite sheet (must match `from_grid` in player.rs).
+    const ATLAS_COLUMNS: usize = 7;
+    /// Atlas row holding the East idle (column 0) and walking (columns 1-6) animations.
+    const WALK_EAST_ROW: usize = 1;
+
     /// The number of idle frames.
     const IDLE_FRAMES: usize = 1;
     /// The duration of each idle frame.
     const IDLE_INTERVAL: Duration = Duration::from_millis(0);
     /// The number of walking frames.
-    const WALKING_FRAMES: usize = 7;
+    const WALKING_FRAMES: usize = 6;
     /// The duration of each walking frame.
-    const WALKING_INTERVAL: Duration = Duration::from_millis(50);
+    const WALKING_INTERVAL: Duration = Duration::from_millis(100);
 
     fn idling() -> Self {
         Self {
@@ -166,8 +171,12 @@ impl PlayerAnimation {
     /// Return sprite index in the atlas.
     pub fn get_atlas_index(&self) -> usize {
         match self.state {
-            PlayerAnimationState::Idling => self.frame,
-            PlayerAnimationState::Walking => self.frame,
+            // The first cell of the row is the idle pose.
+            PlayerAnimationState::Idling => Self::WALK_EAST_ROW * Self::ATLAS_COLUMNS,
+            // The walk loop occupies the remaining cells (columns 1..=6).
+            PlayerAnimationState::Walking => {
+                Self::WALK_EAST_ROW * Self::ATLAS_COLUMNS + 1 + self.frame
+            }
         }
     }
 }

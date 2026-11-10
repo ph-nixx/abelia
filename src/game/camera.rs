@@ -1,29 +1,38 @@
-//! Camera that eases toward a target once it leaves a circular follow region.
-//! See `docs/rfcs/0001-camera-movement.md`.
+//! See `docs/rfcs/0001.md` for details.
 
 use bevy::prelude::*;
+
+use crate::game::player::Player;
 
 pub(super) fn plugin(app: &mut App) {
     app.add_systems(
         PostUpdate,
         follow_target.before(TransformSystems::Propagate),
     );
+    app.add_systems(Update, target_player_with_camera);
 }
 
-/// Camera-side settings: what to follow, the follow region, and smoothing.
+/// Points the camera at the player once the player has spawned.
+fn target_player_with_camera(
+    player: Single<Entity, Added<Player>>,
+    mut camera: Single<&mut PlayerCamera>,
+) {
+    camera.target = Some(*player);
+}
+
+/// target: Entity to follow any entity with a `Transform` and `None` means idle.
+/// region_fraction: Region radius as a fraction of the shorter visible dimension (0.0..=0.5).
+/// decay_rate: Exponential decay rate passed to `smooth_nudge`, higher is snappier.
 #[derive(Component, Reflect)]
 #[reflect(Component)]
 #[require(CameraPosition)]
-pub struct CameraFollow {
-    /// Entity to follow; any entity with a `Transform`. `None` means idle.
+pub struct PlayerCamera {
     pub target: Option<Entity>,
-    /// Region radius as a fraction of the shorter visible dimension (0.0..=0.5).
     pub region_fraction: f32,
-    /// Exponential decay rate passed to `smooth_nudge`; higher is snappier.
     pub decay_rate: f32,
 }
 
-impl Default for CameraFollow {
+impl Default for PlayerCamera {
     fn default() -> Self {
         Self {
             target: None,
@@ -33,27 +42,26 @@ impl Default for CameraFollow {
     }
 }
 
-/// The camera's true, unrounded position; `Transform` holds the pixel-snapped copy.
+/// The camera's unrounded position, `Transform` holds the pixel-snapped copy.
 #[derive(Component, Reflect, Default)]
 #[reflect(Component)]
 struct CameraPosition(Vec2);
 
-/// World-space rectangle the camera's view must stay inside; lives on the level entity.
+// Rectangle the camera's view must stay inside; it lives on the level entity.
 #[derive(Component, Reflect)]
 #[reflect(Component)]
 pub struct LevelBounds(pub Rect);
 
-/// Eases the camera toward `target_position` each frame, clamps it to the
-/// level bounds, and writes a pixel-snapped copy to its `Transform`.
+/// Eases the camera toward `next_position` each frame, clamps it to the level bounds.
 fn follow_target(
     time: Res<Time>,
-    targets: Query<&Transform, Without<CameraFollow>>,
+    targets: Query<&Transform, Without<PlayerCamera>>,
     bounds: Query<&LevelBounds>,
     camera: Single<
         (
             &mut Transform,
             &mut CameraPosition,
-            &CameraFollow,
+            &PlayerCamera,
             &Projection,
         ),
         With<Camera2d>,
@@ -68,7 +76,7 @@ fn follow_target(
     };
 
     let visible_size = projection.area.size();
-    let goal = target_position(
+    let goal = next_position(
         position.0,
         target.translation.xy(),
         visible_size,
@@ -89,7 +97,7 @@ fn follow_target(
 
 /// Camera position the camera should ease toward: unchanged if the target is
 /// inside the follow region, otherwise the point that puts the target on its edge.
-fn target_position(camera: Vec2, target: Vec2, visible_size: Vec2, region_fraction: f32) -> Vec2 {
+fn next_position(camera: Vec2, target: Vec2, visible_size: Vec2, region_fraction: f32) -> Vec2 {
     let radius = visible_size.min_element() * region_fraction;
     let offset = target - camera;
     let distance = offset.length();
@@ -139,17 +147,17 @@ mod tests {
     #[test]
     fn target_inside_region_leaves_camera_unchanged() {
         let camera = Vec2::new(10.0, 20.0);
-        let goal = target_position(camera, camera + Vec2::new(100.0, 0.0), VIEW, FRACTION);
+        let goal = next_position(camera, camera + Vec2::new(100.0, 0.0), VIEW, FRACTION);
         assert_near(goal, camera);
     }
 
     #[test]
     fn target_outside_region_ends_up_on_the_edge() {
-        let goal = target_position(Vec2::ZERO, Vec2::new(500.0, 0.0), VIEW, FRACTION);
+        let goal = next_position(Vec2::ZERO, Vec2::new(500.0, 0.0), VIEW, FRACTION);
         assert_near(goal, Vec2::new(320.0, 0.0));
 
         let target = Vec2::new(300.0, 400.0);
-        let goal = target_position(Vec2::ZERO, target, VIEW, FRACTION);
+        let goal = next_position(Vec2::ZERO, target, VIEW, FRACTION);
         assert!(((target - goal).length() - 180.0).abs() < 1e-3);
         // The goal stays on the line between the camera and the target.
         assert!(goal.perp_dot(target).abs() < 1e-2);
@@ -157,14 +165,14 @@ mod tests {
 
     #[test]
     fn target_exactly_on_the_edge_leaves_camera_unchanged() {
-        let goal = target_position(Vec2::ZERO, Vec2::new(180.0, 0.0), VIEW, FRACTION);
+        let goal = next_position(Vec2::ZERO, Vec2::new(180.0, 0.0), VIEW, FRACTION);
         assert_near(goal, Vec2::ZERO);
     }
 
     #[test]
     fn target_at_camera_position_is_not_nan() {
         let camera = Vec2::new(5.0, 5.0);
-        let goal = target_position(camera, camera, VIEW, FRACTION);
+        let goal = next_position(camera, camera, VIEW, FRACTION);
         assert_near(goal, camera);
         assert!(goal.is_finite());
     }
@@ -172,8 +180,8 @@ mod tests {
     #[test]
     fn radius_uses_the_shorter_dimension() {
         let target = Vec2::new(300.0, 0.0);
-        let wide = target_position(Vec2::ZERO, target, Vec2::new(1280.0, 720.0), FRACTION);
-        let tall = target_position(Vec2::ZERO, target, Vec2::new(720.0, 1280.0), FRACTION);
+        let wide = next_position(Vec2::ZERO, target, Vec2::new(1280.0, 720.0), FRACTION);
+        let tall = next_position(Vec2::ZERO, target, Vec2::new(720.0, 1280.0), FRACTION);
         assert_near(wide, tall);
     }
 
