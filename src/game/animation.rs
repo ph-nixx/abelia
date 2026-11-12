@@ -1,8 +1,4 @@
-//! Player sprite animation.
-//! This is based on multiple examples and may be very different for your game.
-//! - [Sprite flipping](https://github.com/bevyengine/bevy/blob/latest/examples/2d/sprite_flipping.rs)
-//! - [Sprite animation](https://github.com/bevyengine/bevy/blob/latest/examples/2d/sprite_animation.rs)
-//! - [Timers](https://github.com/bevyengine/bevy/blob/latest/examples/time/timers.rs)
+//! See `docs/rfcs/0002.md` for details.
 
 use bevy::prelude::*;
 use rand::prelude::*;
@@ -21,7 +17,7 @@ pub(super) fn plugin(app: &mut App) {
         (
             update_animation_timer.in_set(AppSystems::TickTimers),
             (
-                update_animation_movement,
+                update_animation,
                 update_animation_atlas,
                 trigger_step_sound_effect,
             )
@@ -32,34 +28,33 @@ pub(super) fn plugin(app: &mut App) {
     );
 }
 
-/// Update the animation timer.
-fn update_animation_timer(time: Res<Time>, mut query: Query<&mut PlayerAnimation>) {
+fn update_animation_timer(time: Res<Time>, mut query: Query<&mut PlayerAnimationState>) {
     for mut animation in &mut query {
-        animation.update_timer(time.delta());
+        animation.advance(time.delta());
     }
 }
 
-/// Update the sprite direction and animation state (idling/walking).
-fn update_animation_movement(
-    mut player_query: Query<(&MovementController, &mut Sprite, &mut PlayerAnimation)>,
+/// Pick which animation to play subject to how the player moving.
+fn update_animation(
+    mut player_query: Query<(&MovementController, &mut Sprite, &mut PlayerAnimationState)>,
 ) {
-    for (controller, mut sprite, mut animation) in &mut player_query {
+    for (controller, mut sprite, mut animation_state) in &mut player_query {
         let dx = controller.intent.x;
         if dx != 0.0 {
             sprite.flip_x = dx < 0.0;
         }
 
-        let animation_state = if controller.intent == Vec2::ZERO {
-            PlayerAnimationState::Idling
+        let animation = if controller.intent == Vec2::ZERO {
+            PlayerAnimations::Idling
         } else {
-            PlayerAnimationState::Walking
+            PlayerAnimations::Walking
         };
-        animation.update_state(animation_state);
+        animation_state.change_animation(animation);
     }
 }
 
-/// Update the texture atlas to reflect changes in the animation.
-fn update_animation_atlas(mut query: Query<(&PlayerAnimation, &mut Sprite)>) {
+/// If the frame has changed, update the atlas index so the new frame is drawn to the screen.
+fn update_animation_atlas(mut query: Query<(&PlayerAnimationState, &mut Sprite)>) {
     for (animation, mut sprite) in &mut query {
         let Some(atlas) = sprite.texture_atlas.as_mut() else {
             continue;
@@ -74,12 +69,12 @@ fn update_animation_atlas(mut query: Query<(&PlayerAnimation, &mut Sprite)>) {
 fn trigger_step_sound_effect(
     mut commands: Commands,
     player_assets: If<Res<PlayerAssets>>,
-    mut step_query: Query<&PlayerAnimation>,
+    mut step_query: Query<&PlayerAnimationState>,
 ) {
-    for animation in &mut step_query {
-        if animation.state == PlayerAnimationState::Walking
-            && animation.changed()
-            && (animation.frame == 2 || animation.frame == 5)
+    for animation_state in &mut step_query {
+        if animation_state.animation == PlayerAnimations::Walking
+            && animation_state.changed()
+            && (animation_state.frame == 0 || animation_state.frame == 5)
         {
             let rng = &mut rand::rng();
             let random_step = player_assets.steps.choose(rng).unwrap().clone();
@@ -92,39 +87,39 @@ fn trigger_step_sound_effect(
 /// It is tightly bound to the texture atlas we use.
 #[derive(Component, Reflect)]
 #[reflect(Component)]
-pub struct PlayerAnimation {
+pub struct PlayerAnimationState {
+    /// Tracks the amount of time a frame has been on screen.
     timer: Timer,
+    /// Which frame of the animation to draw to the screen.
     frame: usize,
-    state: PlayerAnimationState,
+    /// The animation that is playing.
+    animation: PlayerAnimations,
 }
 
 #[derive(Reflect, PartialEq)]
-pub enum PlayerAnimationState {
+pub enum PlayerAnimations {
     Idling,
     Walking,
-    // Punching,
 }
 
-impl PlayerAnimation {
+impl PlayerAnimationState {
     /// Number of columns in the sprite sheet (must match `from_grid` in player.rs).
-    const ATLAS_COLUMNS: usize = 7;
-    /// Atlas row holding the East idle (column 0) and walking (columns 1-6) animations.
-    const WALK_EAST_ROW: usize = 1;
+    const COLUMNS: usize = 8;
+    const IDEL_ROW: usize = 0;
+    const WALKING_ROW: usize = 1;
 
-    /// The number of idle frames.
     const IDLE_FRAMES: usize = 1;
     /// The duration of each idle frame.
     const IDLE_INTERVAL: Duration = Duration::from_millis(0);
-    /// The number of walking frames.
-    const WALKING_FRAMES: usize = 6;
-    /// The duration of each walking frame.
-    const WALKING_INTERVAL: Duration = Duration::from_millis(100);
+
+    const WALKING_FRAMES: usize = 8;
+    const WALKING_INTERVAL: Duration = Duration::from_millis(83);
 
     fn idling() -> Self {
         Self {
             timer: Timer::new(Self::IDLE_INTERVAL, TimerMode::Once),
             frame: 0,
-            state: PlayerAnimationState::Idling,
+            animation: PlayerAnimations::Idling,
         }
     }
 
@@ -132,7 +127,7 @@ impl PlayerAnimation {
         Self {
             timer: Timer::new(Self::WALKING_INTERVAL, TimerMode::Repeating),
             frame: 0,
-            state: PlayerAnimationState::Walking,
+            animation: PlayerAnimations::Walking,
         }
     }
 
@@ -140,25 +135,25 @@ impl PlayerAnimation {
         Self::idling()
     }
 
-    /// Update animation timers.
-    pub fn update_timer(&mut self, delta: Duration) {
+    /// Add the time elapsed since the last update, then move to the next frame if the timer finished.
+    pub fn advance(&mut self, delta: Duration) {
         self.timer.tick(delta);
         if !self.timer.just_finished() {
             return;
         }
         self.frame = (self.frame + 1)
-            % match self.state {
-                PlayerAnimationState::Idling => Self::IDLE_FRAMES,
-                PlayerAnimationState::Walking => Self::WALKING_FRAMES,
+            % match self.animation {
+                PlayerAnimations::Idling => Self::IDLE_FRAMES,
+                PlayerAnimations::Walking => Self::WALKING_FRAMES,
             };
     }
 
     /// Update animation state if it changes.
-    pub fn update_state(&mut self, state: PlayerAnimationState) {
-        if self.state != state {
-            match state {
-                PlayerAnimationState::Idling => *self = Self::idling(),
-                PlayerAnimationState::Walking => *self = Self::walking(),
+    pub fn change_animation(&mut self, animation: PlayerAnimations) {
+        if self.animation != animation {
+            match animation {
+                PlayerAnimations::Idling => *self = Self::idling(),
+                PlayerAnimations::Walking => *self = Self::walking(),
             }
         }
     }
@@ -168,15 +163,11 @@ impl PlayerAnimation {
         self.timer.just_finished()
     }
 
-    /// Return sprite index in the atlas.
+    /// To get the atlas index, we add the animation’s offset, the number of frames that come before it on the sheet, to the current frame.
     pub fn get_atlas_index(&self) -> usize {
-        match self.state {
-            // The first cell of the row is the idle pose.
-            PlayerAnimationState::Idling => Self::WALK_EAST_ROW * Self::ATLAS_COLUMNS,
-            // The walk loop occupies the remaining cells (columns 1..=6).
-            PlayerAnimationState::Walking => {
-                Self::WALK_EAST_ROW * Self::ATLAS_COLUMNS + 1 + self.frame
-            }
+        match self.animation {
+            PlayerAnimations::Idling => Self::IDEL_ROW * Self::COLUMNS,
+            PlayerAnimations::Walking => Self::WALKING_ROW * Self::COLUMNS + self.frame,
         }
     }
 }

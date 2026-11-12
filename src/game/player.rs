@@ -8,7 +8,7 @@ use bevy::{
 use crate::{
     AppSystems, PausableSystems,
     asset_tracking::LoadResource,
-    game::{animation::PlayerAnimation, movement::MovementController},
+    game::{animation::PlayerAnimationState, movement::MovementController},
 };
 
 pub(super) fn plugin(app: &mut App) {
@@ -30,9 +30,9 @@ pub fn player(
 ) -> impl Bundle {
     // A texture atlas is a way to split a single image into a grid of related images.
     // You can learn more in this example: https://github.com/bevyengine/bevy/blob/latest/examples/2d/texture_atlas.rs
-    let layout = TextureAtlasLayout::from_grid(UVec2::splat(32), 7, 6, None, None);
+    let layout = TextureAtlasLayout::from_grid(UVec2::splat(32), 8, 5, None, None);
     let texture_atlas_layout = texture_atlas_layouts.add(layout);
-    let player_animation = PlayerAnimation::new();
+    let player_animation = PlayerAnimationState::new();
 
     (
         Name::new("Player"),
@@ -104,7 +104,7 @@ impl FromWorld for PlayerAssets {
                     // Use `nearest` image sampling to preserve pixel art style.
                     settings.sampler = ImageSampler::nearest();
                 })
-                .load("images/characters/mc-noweapon-4d.png"),
+                .load("images/characters/mc-noweapon-2d.png"),
             steps: vec![
                 assets.load("audio/sound_effects/step1.ogg"),
                 assets.load("audio/sound_effects/step2.ogg"),
